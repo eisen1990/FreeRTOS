@@ -5,6 +5,7 @@ Written by Eisen, CBNU, REP of KOREA
 How to compile:
 	make
 
+freeRTOS-rtsm.bin: Runable binary on board(u-boot)
 
 Tools:
 	arm-none-eabi-
