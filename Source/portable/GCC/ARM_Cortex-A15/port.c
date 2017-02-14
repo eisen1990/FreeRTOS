@@ -119,6 +119,9 @@ void vPortSVCHandler( void ) __attribute__ (( naked ));
 void vPortInterruptContext( void ) __attribute__ (( naked ));
 void vPortSMCHandler( void ) __attribute__ (( naked ));
 
+// EASW
+void em_SwitchContext( void ) __attribute__((naked));
+
 /*
  * Start first task is a separate function so it can be tested in isolation.
  */
@@ -161,7 +164,7 @@ portSTACK_TYPE *pxPortInitialiseStack( portSTACK_TYPE *pxTopOfStack, pdTASK_CODE
 portSTACK_TYPE *pxOriginalStack = pxTopOfStack;
 
 
-	em_printf("pxPortInitStack!!!!!!!!!!!!!!!!!!!!!!%x, %x, %x\n", pxTopOfStack, pxCode, pvParameters);
+	//em_printf("pxPortInitStack!!!!!!!!!!!!!!!!!!!!!!%x, %x, %x\n", pxTopOfStack, pxCode, pvParameters);
 
 
 	/* Simulate the stack frame as it would be created by a context switch
@@ -184,7 +187,7 @@ portSTACK_TYPE *pxOriginalStack = pxTopOfStack;
 
 void vPortSVCHandler( void )
 {
-	em_printf("vPortSVCHandler!!!!!!!!!!!!!!!!!!!!!!");
+	//em_printf("vPortSVCHandler!!!!!!!!!!!!!!!!!!!!!!\n");
 	__asm volatile(
 			" ldr r9, pxCurrentTCBConst2	\n"		/* Load the pxCurrentTCB pointer address. */
 			" ldr r8, [r9]					\n"		/* Load the pxCurrentTCB address. */
@@ -227,9 +230,35 @@ void vPortInterruptContext( void )
 }
 /*-----------------------------------------------------------*/
 
+void em_SwitchContext( void )
+{
+	em_printf("Context Switch!!!!!!!!!!!!!!!!!!!!!");
+	__asm volatile( 
+			" sub lr, lr, #4                \n"     /* Adjust the return address. */
+			" srsdb SP, #31                 \n"     /* Store the return address and SPSR to the Task's stack. */
+			" stmdb SP, {SP}^               \n"     /* Store the SP_USR to the stack. */
+			" sub SP, SP, #4                \n"     /* Decrement the Stack Pointer. */
+			" ldmia SP!, {lr}               \n"     /* Load the SP_USR into LR. */
+			" sub LR, LR, #8                \n"     /* Make room for the previously stored LR and CPSR. */
+			" stmdb LR, {r0-lr}^            \n"     /* Store the Task's registers. */
+			" sub LR, LR, #60               \n"     /* Adjust the Task's stack pointer. */
+			" ldr r9, pxCurrentTCBConst2    \n"     /* Load the pxCurrentTCB pointer address. */
+			" ldr r8, [r9]                  \n"     /* Load the pxCurrentTCB address. */
+			" str lr, [r8]                  \n"     /* Store the Task stack pointer to the TCB. */
+			" b vTaskSwitchContext         \n"     /* Branch and link to find specific service handler. */
+			" ldr r8, [r9]					\n"		/* Load the pxCurrentTCB address. */
+			" ldr lr, [r8]					\n"		/* Load the Task Stack Pointer into LR. */
+			" ldmia lr, {r0-lr}^		 	\n"		/* Load the Task's registers. */
+			" add lr, lr, #60			 	\n"		/* Re-adjust the stack for the Task Context */
+			" rfeia lr				 		\n"		/* Return from exception by loading the PC and CPSR from Task Stack. */
+			" nop						 	\n"
+			);
+	em_printf("Context S End\n");
+}
+
 void vPortStartFirstTask( void )
 {
-	em_printf("vPortStartFirstTask!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	//em_printf("vPortStartFirstTask!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 	__asm volatile(
 					" mov SP, %[svcsp]			\n" /* Set-up the supervisor stack. */
 					" svc 0 					\n" /* Use the supervisor call to be in an exception. */
@@ -261,7 +290,6 @@ void tmp_init_gicd()
 	int cpu_id = get_cpuid();
 	int i = 0;
 	int NIRQS = 160;
-	//em_printf("cpu id : %d\n", cpu_id);
 	gicd_disable_irq_forwarding();
 
 	for(i;i<(NIRQS/32);i++){
@@ -283,20 +311,11 @@ void tmp_init_gicc()
 
 void tmp_init_gtimer()
 {
-	em_printf("tmp_init_gtimer start\n");
-	gt_set_virtual_timer_deadline(1000000);
+	//em_printf("tmp_init_gtimer start\n");
+	gt_set_virtual_timer_deadline(300000);
 	gt_unmask_virtual_timer();
 	gt_enable_virtual_timer();
-	em_printf("tmp_init_gtimer end\n");
-}
-
-void tmp_init_mct()
-{
-	unsigned long reg = _read(MCT_ADDR + EXYNOS5_MCT_REG);
-	em_printf("mct init\n");
-	reg |= (EXYNOS5_MCT_G_TCON_START);
-	_write(MCT_ADDR + EXYNOS5_MCT_REG, reg);
-	
+	//em_printf("tmp_init_gtimer end\n");
 }
 
 portBASE_TYPE xPortStartScheduler( void )
@@ -305,23 +324,20 @@ portBASE_TYPE xPortStartScheduler( void )
 	here already. */
 
 	prvSetupTimerInterrupt();
-	em_printf("prvSetupTimerInterrupt()\n");
+	em_printf("Generic Timer Setup!\n");
 	/* Install the interrupt handler. */
 	vPortInstallInterruptHandler( (void (*)(void *))vPortYieldFromISR, NULL, portSGI_YIELD_VECTOR_ID, pdTRUE, /* configMAX_SYSCALL_INTERRUPT_PRIORITY */ configKERNEL_INTERRUPT_PRIORITY, 1 );
 	/* Finally, allow the GIC to pass interrupts to the processor. */
-	/*
-	portGIC_WRITE( portGIC_ICDDCR(portGIC_DISTRIBUTOR_BASE), 0x01UL );
-	portGIC_WRITE( portGIC_ICCBPR(portGIC_PRIVATE_BASE), 0x00UL );
-	portGIC_WRITE( portGIC_ICCPMR(portGIC_PRIVATE_BASE), configLOWEST_INTERRUPT_PRIORITY );
-	portGIC_WRITE( portGIC_ICCICR(portGIC_PRIVATE_BASE), 0x01UL );
-	*/
 
 	//init gicd
+	em_printf("GICD & GICC Initialization!\n");
+	em_printf("Enable Generic Timer(PPI4, IRQ 27)\n");
 	tmp_init_gicd();
 	tmp_init_gicc();
 
 
 	/* Start the first task. */
+	em_printf("=== FreeRTOS Schedule Start ===\n");
 	vPortStartFirstTask();
 
 	/* Should not get here! */
@@ -338,52 +354,27 @@ void vPortEndScheduler( void )
 
 void vPortSysTickHandler( void *pvParameter )
 {
-	//em_printf("new SysTick\n");
+	//em_printf("new SysTick");
 	gicd_clr_enable_irq(27);
 	vTaskIncrementTick();
 
-	portEND_SWITCHING_ISR(pdTRUE);
 
-	gt_set_virtual_timer_deadline(10000000);
+	gt_set_virtual_timer_deadline(300000);
 	gt_unmask_virtual_timer();
 	gicd_set_enable_irq(27);
-	
+	#if ( configUSE_PREEMPTION == 1 )
+	{
+		//EASW
+		//All tasks enter Delay state, prvIdle task continuosly running.
+		//So, We would switch Context from prvIdle
+		
+		vTaskSwitchContext();
+		//portEND_SWITCHING_ISR(pdTRUE);
+	}
+	#endif
+	//em_printf("end\n");
 }
 
-void vPortSysTickHandler_old( void *pvParameter )
-{
-	/* Clear the Interrupt. */
-    //Clear irq to ? GIC?
-	//*(portSYSTICK_INTERRUPT_STATUS) = 0x01UL;
-	em_printf("SysTick\n");
-#ifdef CONFIG_GENERIC_TIMER
-    unsigned long long tval;
-    unsigned int ctrl;
-    ctrl = read_cntp_ctl();
-    if (ctrl & GENERIC_TIMER_CTRL_ISTATUS) {
-        ctrl |= GENERIC_TIMER_CTRL_IMASK;
-        write_cntp_ctl(ctrl);
-    }
-
-    // vSerialPutString(configUART_PORT, "vPortSysTickHandler", 19);
-#endif
-	vTaskIncrementTick();
-
-#if configUSE_PREEMPTION == 1
-	/* If using preemption, also force a context switch. */
-//	vTaskSwitchContext();
-	portEND_SWITCHING_ISR(pdTRUE);
-#endif
-
-#ifdef CONFIG_GENERIC_TIMER
-    ctrl = read_cntp_ctl();
-    ctrl |= GENERIC_TIMER_CTRL_ENABLE;
-    ctrl &= ~GENERIC_TIMER_CTRL_IMASK;
-    tval = SCHED_TICK * COUNT_PER_USEC;
-    write_cntp_tval(tval);
-    write_cntp_ctl(ctrl);
-#endif
-}
 /*-----------------------------------------------------------*/
 
 /*
@@ -420,69 +411,10 @@ extern void vTimer0Enable();
 void prvSetupTimerInterrupt( void )
 {
 	tmp_init_gtimer();
-	tmp_init_mct();
 
 	vPortInstallInterruptHandler( vPortSysTickHandler, NULL, 27, pdTRUE, /* configMAX_SYSCALL_INTERRUPT_PRIORITY */ configKERNEL_INTERRUPT_PRIORITY, 1 );
 }
 
-void prvSetupTimerInterrupt_old( void )
-{
-    volatile unsigned int ulValue = 2UL;
-    unsigned long init_timer = 0x10;
-
-    signed char cAddress[64];
-
-#ifdef CONFIG_GENERIC_TIMER
-    unsigned int ctrl;
-    unsigned long long tval;
-    // Disable Generic Timer
-    ctrl = read_cntp_ctl();
-	em_printf("CONFIG_GENERIC_TIMER\n");
-    ctrl &= GENERIC_TIMER_CTRL_ENABLE;
-    ctrl |= GENERIC_TIMER_CTRL_IMASK;
-    write_cntp_ctl(ctrl);
-	em_printf("GENERIC TIMER MASK\n");
-    generic_timer_enable();
-#endif
-
-	//EASW
-    //vTimer0Initialise(init_timer);
-    //vTimer0Enable();
-
-	/* Install the interrupt handler. */
-	vPortInstallInterruptHandler( vPortSysTickHandler, NULL, 27, pdTRUE, /* configMAX_SYSCALL_INTERRUPT_PRIORITY */ configKERNEL_INTERRUPT_PRIORITY, 1 );
-
-	//EASW	
-	//vPortInstallInterruptHandler( vTimer0InterruptHandler, NULL, 34, pdTRUE, /* configMAX_SYSCALL_INTERRUPT_PRIORITY */ configKERNEL_INTERRUPT_PRIORITY, 1 );
-
-#ifdef CONFIG_GENERIC_TIMER
-	/* Configure SysTick to interrupt at the requested rate. */
-    tval = SCHED_TICK * COUNT_PER_USEC;
-    write_cntp_tval(tval);
-
-    ctrl = read_cntp_ctl();
-    ctrl |= GENERIC_TIMER_CTRL_ENABLE;
-    ctrl &= ~GENERIC_TIMER_CTRL_IMASK;
-    write_cntp_ctl(ctrl);
-
-    ulValue = read_cntpct();
-    sprintf( cAddress, "generic_timer value: 0x%8.8lX\r\n", ulValue );
-    //vSerialPutString(configUART_PORT,cAddress, strlen(cAddress) );
-    ulValue = read_cntpct();
-    sprintf( cAddress, "generic_timer value: 0x%8.8lX\r\n", ulValue );
-    //vSerialPutString(configUART_PORT,cAddress, strlen(cAddress) );
-    ulValue = read_cntpct();
-    sprintf( cAddress, "generic_timer value: 0x%8.8lX\r\n", ulValue );
-    //vSerialPutString(configUART_PORT,cAddress, strlen(cAddress) );
-    ulValue = read_cntpct();
-    sprintf( cAddress, "generic_timer value: 0x%8.8lX\r\n", ulValue );
-    //vSerialPutString(configUART_PORT,cAddress, strlen(cAddress) );
-    ulValue = read_cntpct();
-    sprintf( cAddress, "generic_timer value: 0x%8.8lX\r\n", ulValue );
-    //vSerialPutString(configUART_PORT,cAddress, strlen(cAddress) );
-	em_printf("GENERIC TIMER : 0x%8.8lx\n",ulValue);
-#endif
-}
 /*-----------------------------------------------------------*/
 
 

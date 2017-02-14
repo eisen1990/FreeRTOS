@@ -1,31 +1,33 @@
 #include "includes.h"
 
 /* UART Base Address determined by Hypervisor's Stage 2 Translation Table */
-#define UART0           0x12C20000
+#define TEGRA_CLK_RESET_BASE        0x60006000
 
-/* baudrate rest value */
-union br_rest {
-    unsigned short  slot;       /* udivslot */
-    unsigned char   value;      /* ufracval */
+#define TEGRA_UARTD_BASE        0x70006300
+#define TEGRA_UARTD_SIZE        0x100
+
+
+static const struct {
+	unsigned int base;
+	unsigned int reset_reg;
+	unsigned int clock_reg;
+	unsigned int bit;
+} uarts = {
+	TEGRA_UARTD_BASE,
+	TEGRA_CLK_RESET_BASE + 0x0c,
+	TEGRA_CLK_RESET_BASE + 0x18,
+	1,
 };
 
-struct s5p_uart {
-    unsigned int    ulcon;
-    unsigned int    ucon;
-    unsigned int    ufcon;
-    unsigned int    umcon;
-    unsigned int    utrstat;
-    unsigned int    uerstat;
-    unsigned int    ufstat;
-    unsigned int    umstat;
-    unsigned char   utxh;
-    unsigned char   res1[3];
-    unsigned char   urxh;
-    unsigned char   res2[3];
-    unsigned int    ubrdiv;
-    union br_rest   rest;
-    unsigned char   res3[0xffd0];
-};
+//int uart_id = 3;
+volatile unsigned char *uart;
+
+#define DEBUG_UART_SHIFT    2
+#define UART_LSR_THRE       0x20 /* Transmit-hold-register empty */
+#define UART_LSR            5    /* In:  Line Status Register    */
+#define UART_RX             0    /* In:  Receive buffer          */
+#define UART_TX             0    /* Out: Transmit buffer         */
+
 
 /* Exynos 5250 UART register macros */
 #define UTXH        0x20
@@ -43,6 +45,8 @@ struct s5p_uart {
 
 static int serial_err_check(int op)
 {
+	/*
+    struct s5p_uart *const uart = (struct s5p_uart *) UART0;
     struct s5p_uart *const uart = (struct s5p_uart *) UART0;
     unsigned int mask;
 
@@ -52,7 +56,8 @@ static int serial_err_check(int op)
         mask = 0xf;
 
     return readl(&uart->uerstat) & mask;
-
+	*/
+	return 0;
 }
 
 static inline int s5p_uart_divslot(void)
@@ -63,15 +68,13 @@ static inline int s5p_uart_divslot(void)
 
 void uart_tx_char(char c)
 {
-    struct s5p_uart *const uart = (struct s5p_uart *) UART0;
-
-
-    while((readl(&uart->ufstat) & TX_FIFO_FULL_MASK)) {
-        if (serial_err_check(1))
-            return;
-    }
-
-    writeb(c, &uart->utxh);
+	//modified
+	uart = (volatile unsigned char *)uarts.base;
+    while (!(uart[UART_LSR << DEBUG_UART_SHIFT] & UART_LSR_THRE))
+	;
+	uart[UART_TX << DEBUG_UART_SHIFT] = c;
+	if (c == '\n')
+		uart[UART_TX << DEBUG_UART_SHIFT] = '\r';
 }
 
 void uart_out_char_check_CR(const char c)
@@ -101,12 +104,12 @@ int uart_out_str_check_CR(char *str, int size)
     return lp;
 }
 
-
+/*
 int serial_getc_dev(void)
 {
     struct s5p_uart * const uart = (struct s5p_uart *) UART0;
 
-    /* wait for character to arrive */
+    // wait for character to arrive 
     while (!(readl(&uart->ufstat) & (RX_FIFO_COUNT_MASK | RX_FIFO_FULL_MASK))) {
         if (serial_err_check(0))
             return 0;
@@ -114,6 +117,7 @@ int serial_getc_dev(void)
 
     return (int) (readb(&uart->urxh) & 0xff);
 }
+*/
 
 char uart_rx_char()
 {

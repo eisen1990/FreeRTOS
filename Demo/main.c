@@ -63,6 +63,7 @@
 
 ///////////////////////////////////////
 #include <gtimer.h>
+#include <io-tk1.h>
 ///////////////////////////////////////
 
 /* Scheduler includes. */
@@ -91,9 +92,12 @@
 
 
 /* Periodically checks to see whether the demo tasks are still running. */
-static void em_Check( void *pvParameters );
+static void IdleCheck( void *pvParameters );
 static void em_Check2( void *pvParameters );
 static void em_Check3( void *pvParameters );
+static void led0( void *pvParameters );
+static void led1( void *pvParameters );
+static void led2( void *pvParameters );
 static void vCheckTask( void *pvParameters );
 /*----------------------------------------------------------------------------*/
 
@@ -103,32 +107,76 @@ static void vCheckTask( void *pvParameters );
 static void prvSetupHardware( void );
 /*----------------------------------------------------------------------------*/
 
+void debug(struct gpio_bank *bank, int port)
+{
+	em_printf("\n === PORT debug === \n");
+	em_printf("PORT base : %x\n", bank);
+	em_printf("PORT CNF : %x\n", readgpio(&bank->cnf[port]));
+	em_printf("PORT OE base : %x\n", &bank->oe[port]);
+	em_printf("PORT OE : %x\n", readgpio(&bank->oe[port]));
+	em_printf("PORT OUT base : %x\n", &bank->out[port]);
+	em_printf("PORT OUT : %x\n", readgpio(&bank->out[port]));
+	/*
+	em_printf("PORT msk base : %x\n", &bank->msk_cnf[port]);
+	em_printf("PORT msk CNF : %x\n", readgpio(&bank->msk_cnf[port]));
+	em_printf("PORT msk OE base : %x\n", &bank->msk_oe[port]);
+	em_printf("PORT msk OE : %x\n", readgpio(&bank->msk_oe[port]));
+	em_printf("PORT msk OUT base : %x\n", &bank->msk_out[port]);
+	em_printf("PORT msk OUT : %x\n", readgpio(&bank->msk_out[port]));
+	*/
+	em_printf("\n === PORT debug === \n");
+}
+
+
 int main( void )
 {
 	int i = 0;
 	char str[64];
-	em_printf("1. start entry point\n");
-	//printf("org print\n",str);
+	em_printf("Start FreeRTOS!\n");
 	/* Initialise the Hardware. */
 	//prvSetupHardware();
-	em_printf("2. prvSetupHardware complete\n");
-//	* Start the tasks defined within the file. 
-	xTaskCreate( em_Check, (const signed char *)"Check", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
+	//	* Start the tasks defined within the file. 
+	em_printf("Create Tasks!\n");
+
+	
+	struct gpio_bank *gpio2 = (struct gpio_bank *)GPIO_CONTROLLER_2;
+	struct gpio_bank *gpio3 = (struct gpio_bank *)GPIO_CONTROLLER_3;
+	struct gpio_bank *gpio4 = (struct gpio_bank *)GPIO_CONTROLLER_4;
+	struct gpio_bank *gpio5 = (struct gpio_bank *)GPIO_CONTROLLER_5;
+	struct gpio_bank *gpio6 = (struct gpio_bank *)GPIO_CONTROLLER_6;
+	struct gpio_bank *gpio8 = (struct gpio_bank *)GPIO_CONTROLLER_8;
+
+	//debug(gpio6, U);
+		gpio_cfg_pin(gpio5, PT, 5, GPIO_OUTPUT);
+		debug(gpio5, PT);
+		gpio_cfg_pin(gpio8, PFF, 0, GPIO_OUTPUT);
+		debug(gpio8, PFF);
+
+		for(i = 0; i < 8; i++)
+		{
+			gpio_cfg_pin(gpio6, PU, i, GPIO_OUTPUT);
+		}
+		gpio_set_value(gpio5, PT, 5, LOW);
+
+
+	//xTaskCreate( IdleCheck, (const signed char *)"IdleCheck", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
 	xTaskCreate( em_Check2, (const signed char *)"Check2", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
-
-	em_printf("13. xTaskCreate\n");
-    em_printf("[%s]: %d\r\n", __func__, __LINE__ );
-    //vSerialPutString(configUART_PORT, str, strlen(str) );
+	//xTaskCreate( em_Check3, (const signed char *)"Check3", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
 	
+	xTaskCreate( led0, (const signed char *)"led0", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
+	xTaskCreate( led1, (const signed char *)"led1", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
+	xTaskCreate( led2, (const signed char *)"led2", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL );
+
+	//em_printf("[%s]: %d\r\n", __func__, __LINE__ );
+	//vSerialPutString(configUART_PORT, str, strlen(str) );
+
 	vTaskStartScheduler();
-	
-	em_printf("14. vTaskStartScheduler\n");
-	while(1);
-	/* Should never reach here. */
-	//vSerialPutString(mainPRINT_PORT, (const signed char * const)"Should never reach here!\r\n", 26 );
 
-	/* Will only get here if there was not enough heap space to create the idle task. */
-	return 0;
+			/* Should never reach here. */
+			//vSerialPutString(mainPRINT_PORT, (const signed char * const)"Should never reach here!\r\n", 26 );
+
+			/* Will only get here if there was not enough heap space to create the idle task. */
+			return 0;
 }
 /*----------------------------------------------------------------------------*/
 
@@ -144,39 +192,87 @@ void vApplicationIdleHook( void )
 }
 
 /*----------------------------------------------------------------------------*/
-static void em_Check( void *pvParameters )
+static void IdleCheck( void *pvParameters )
 {
 	int i = 0;
+	//em_printf("Idle Task\n");
 	for(i = 0;;i++)
 	{
-		if(i % 1000000 == 0)
-		{
-			em_printf("hello arndale\n");
-			//vTaskDelay(2);
-			//taskYIELD();
-		}
+		//em_printf("Idle Task\n");
+		vTaskDelay(50);
 	}
 }
 static void em_Check2( void *pvParameters )
 {
 	int i = 0;
+	struct gpio_bank *gpio5 = (struct gpio_bank *)GPIO_CONTROLLER_5;
 	for(i = 0;;i++)
 	{
-		if(i % 1000000 == 0)
-		{
-			em_printf("Goodbye arndale\n");
-			//vTaskDelay(10);
-			//taskYIELD();
-		}
+		qph_gpio_set_value(gpio5, PT, 5, HIGH);
+		//em_printf("HIGH : %x \n", readgpio(&gpio5->out[PT]));
+		vTaskDelay(20);
+		qph_gpio_set_value(gpio5, PT, 5, LOW);
+		//em_printf("LOW : %x \n", readgpio(&gpio5->out[PT]));
+		vTaskDelay(20);
 	}
 }
 static void em_Check3( void *pvParameters )
 {
 	int i = 0;
+	struct gpio_bank *gpio8 = (struct gpio_bank *)GPIO_CONTROLLER_8;
 	for(i = 0;;i++)
 	{
-		if(i % 1000000 == 0)
-		em_printf("Again arndale\n");
+		qph_gpio_set_value(gpio8, PFF, 0, HIGH);
+		//em_printf("Check 333 HIGH : %x \n", readgpio(&gpio8->out[PFF]));
+		vTaskDelay(20);
+		qph_gpio_set_value(gpio8, PFF, 0, LOW);
+		//em_printf("Check 333 LOW : %x \n", readgpio(&gpio8->out[PFF]));
+		vTaskDelay(20);
+	}
+}
+
+static void led0( void *pvParameters)
+{
+	int i = 0;
+	struct gpio_bank *gpio6 = (struct gpio_bank *)GPIO_CONTROLLER_6;
+	for(;;)
+	{
+		qph_gpio_set_value(gpio6, PU, 0, HIGH);
+		//em_printf("=== led0 HIGH === \n");
+		vTaskDelay(20);
+		qph_gpio_set_value(gpio6, PU, 0, LOW);
+		//em_printf("=== led0 LOW === \n");
+		vTaskDelay(20);
+	}
+}
+static void led1( void *pvParameters)
+{
+	int i = 0;
+	struct gpio_bank *gpio6 = (struct gpio_bank *)GPIO_CONTROLLER_6;
+	for(;;)
+	{
+		qph_gpio_set_value(gpio6, PU, 1, HIGH);
+		//em_printf("led1 HIGH\n");
+		vTaskDelay(25);
+		qph_gpio_set_value(gpio6, PU, 1, LOW);
+		//em_printf("led1 LOW\n");
+		vTaskDelay(25);
+	}
+}
+static void led2( void *pvParameters)
+{
+	int i = 0;
+	struct gpio_bank *gpio6 = (struct gpio_bank *)GPIO_CONTROLLER_6;
+	for(;;)
+	{
+		qph_gpio_set_value(gpio6, PU, 2, HIGH);
+		//em_printf("led2 HIGH\n");
+		//debug(gpio6, PU);
+		vTaskDelay(150);
+		qph_gpio_set_value(gpio6, PU, 2, LOW);
+		//em_printf("led2 LOW\n");
+		//debug(gpio6, PU);
+		vTaskDelay(150);
 	}
 }
 static void vCheckTask( void *pvParameters )
@@ -186,15 +282,15 @@ static void vCheckTask( void *pvParameters )
 
 static void prvSetupHardware( void )
 {
-unsigned long ulVector = 0UL;
-    char str[64];
+	unsigned long ulVector = 0UL;
+	char str[64];
 
-	
+
 	portDISABLE_INTERRUPTS();
 
 	// Install the Spurious Interrupt Handler to help catch interrupts. 
-extern void vPortUnknownInterruptHandler( void *pvParameter );
-extern void vPortInstallInterruptHandler( void (*vHandler)(void *), void *pvParameter, unsigned long ulVector, unsigned char ucEdgeTriggered, unsigned char ucPriority, unsigned char ucProcessorTargets );
+	extern void vPortUnknownInterruptHandler( void *pvParameter );
+	extern void vPortInstallInterruptHandler( void (*vHandler)(void *), void *pvParameter, unsigned long ulVector, unsigned char ucEdgeTriggered, unsigned char ucPriority, unsigned char ucProcessorTargets );
 	for ( ulVector = 0; ulVector < 160; ulVector++ )
 		vPortInstallInterruptHandler( vPortUnknownInterruptHandler, (void *)ulVector, ulVector, pdTRUE, configMAX_SYSCALL_INTERRUPT_PRIORITY, 1 );
 

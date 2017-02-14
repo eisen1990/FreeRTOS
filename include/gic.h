@@ -3,10 +3,12 @@
 
 #include <gic-types.h>
 
+//#define GICD_BASE				0x10481000
+//#define GICC_BASE				0x10482000
 //#define NIRQS					160
 
-#define GICD_BASE 0x10481000
-#define GICC_BASE 0x10482000
+#define GICD_BASE 0x50041000
+#define GICC_BASE 0x50042000
 extern int NIRQS;
 
 #define GICD_CTLR               0x0000

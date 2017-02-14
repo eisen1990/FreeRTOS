@@ -128,22 +128,13 @@ extern void vPortClearInterruptMask(portBASE_TYPE);
 	//#define portGIC_PRIVATE_BASE					( 0x2C002000UL )	/* vexpress-a15 */
 	//#define portGIC_DISTRIBUTOR_BASE				( 0x2C001000UL )	/* vexpress-a15 */
 	/* EASW */
-	#define portGIC_PRIVATE_BASE					( 0x10482000UL )	/* vexpress-a15 */
-	#define portGIC_DISTRIBUTOR_BASE				( 0x10481000UL )	/* vexpress-a15 */
+	#define portGIC_PRIVATE_BASE					( 0x50042000UL )	/* vexpress-a15 */
+	#define portGIC_DISTRIBUTOR_BASE				( 0x50041000UL )	/* vexpress-a15 */
 	#define portGIC2_BASE							( portGIC_PRIVATE_BASE )	/* vexpress-a15 */
 	#define portGIC2_DISTRIBUTOR_BASE				( portGIC_DISTRIBUTOR_BASE )	/* vexpress-a15 */
 	#define portEXCEPTION_VECTORS_BASE				( 0x80500000UL )
 	#define portMAX_VECTORS							( 64UL )
 #endif
-
-//EASW
-#define MCT_ADDR	0x101c0000
-#define EXYNOS5_MCT_REG		0x240
-#define EXYNOS5_MCT_G_TCON_START (1 << 8)
-
-#define _read(add) *((volatile unsigned int *) (add))
-#define _write(add, val) *((volatile unsigned int *)(add)) = val
-
 
 /* GIC Processor Registers. */
 #define portGIC_ICCICR(x)					( ((unsigned long)(x)) + 0x00UL )
@@ -278,6 +269,7 @@ extern void vPortClearInterruptMask(portBASE_TYPE);
 /* SGI for Yielding Task. */
 #define portSGI_YIELD_VECTOR_ID			( 1 )
 #define portSGI_YIELD( xCPUID )			( ( 0 << 24 ) | ( ( 1 << 16 ) << ( xCPUID ) ) | portSGI_YIELD_VECTOR_ID )
+//#define portYIELD()		em_SwitchContext()
 #define portYIELD()		( ( portGIC_READ( portGIC_ICDISPR_BASE( portGIC_DISTRIBUTOR_BASE ) ) & portSGI_YIELD_VECTOR_ID ) == 0UL ? portGIC_WRITE( portGIC_ICDSGIR( portGIC_DISTRIBUTOR_BASE ), portSGI_YIELD( 0 ) ) : (void)portGIC_DISTRIBUTOR_BASE )
 //#define portYIELD()		( ( portGIC_READ( portGIC_ICDSPENDGIR( portGIC_DISTRIBUTOR_BASE ) ) & portSGI_YIELD_VECTOR_ID ) == 0UL ? portGIC_WRITE( portGIC_ICDSGIR( portGIC_DISTRIBUTOR_BASE ), portSGI_YIELD( 0 ) ) : (void)portGIC_DISTRIBUTOR_BASE )
 # if 0
